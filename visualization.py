@@ -6,38 +6,40 @@ import numpy as np
 from wordcloud import WordCloud
 from collections import Counter
 
-
-print("\n--- VISUALIZATION ---")
+# RATING DISTRIBUTION
 def visualize_rating_distribution(df):
 
     plt.figure(figsize=(10,6))
-    sns.countplot(data=df, x='Rating', palette='Blues')
-    plt.title('Phân bố Rating của Review')
+    sns.countplot(data=df, x='Rating',palette='Blues')
+    plt.title('Distribution of Ratings')
     plt.xlabel('Rating (Stars)')
-    plt.ylabel('Số lượng')
+    plt.ylabel('Count')
+
     plt.show()
 
-
+# REVIEW LENGTH DISTRIBUTION
 def visualize_review_length(df):
 
     plt.figure(figsize=(10,6))
-    df['Review_Length'] = df['Review Text'].apply(lambda x: len(str(x).split()))
     sns.histplot(df['Review_Length'], bins=50, kde=True, color='royalblue')
-    plt.title('Phân bố độ dài của Review (Số lượng từ)')
-    plt.xlabel('Độ dài review')
-    plt.ylabel('Tần suất')
-    plt.xlim(0, df['Review_Length'].quantile(0.95)) 
+    plt.title('Review Length Distribution')
+    plt.xlabel('Review Length')
+    plt.ylabel('Frequency')
+    plt.xlim(0, df['Review_Length'].quantile(0.95))
+
     plt.show()
 
-
+# AVERAGE REVIEW LENGTH BY RATING
 def visualize_average_length(df):
 
     plt.figure(figsize=(10, 6))
     sns.barplot(data=df, x='Rating', y='Review_Length', estimator=np.mean, palette='Blues', errorbar=None)
-    plt.title('Độ dài Review trung bình theo từng mức Rating')
+    plt.title('Average Review Length by Rating')
     plt.xlabel('Rating (Stars)')
-    plt.ylabel('Độ dài trung bình (Số lượng từ)')
+    plt.ylabel('Average Review Length')
+
     plt.show()
+
 
 
 def visualize_heatmap(df):
@@ -45,8 +47,15 @@ def visualize_heatmap(df):
     plt.figure(figsize=(8, 6))
     numeric_df = df.select_dtypes(include=[np.number])
     correlation_matrix = numeric_df.corr()
-    sns.heatmap(correlation_matrix, annot=True, cmap='Blues', fmt=".2f", linewidths=.5)
-    plt.title('Ma trận tương quan (Heatmap) giữa các biến số')
+    sns.heatmap(
+        correlation_matrix,
+        annot=True,
+        cmap='Blues',
+        fmt=".2f",
+        linewidths=.5
+    )
+    plt.title('Correlation Heatmap')
+
     plt.show()
 
 
@@ -60,34 +69,54 @@ def generate_wordcloud(df):
     plt.title('Word Cloud')
     plt.show()
 
-
+# TOP 20 FREQUENT WORDS
 def top_words_visualization(df):
 
-    all_words = " ".join(df['cleaned_review'].dropna().astype(str).tolist()).split()
+    all_words = " ".join(
+        df['Cleaned_Review Text']
+        .dropna()
+        .astype(str)
+        .tolist()
+    ).split()
+
     word_counts = Counter(all_words)
-    top_words_df = pd.DataFrame(word_counts.most_common(20), columns=['Word', 'Frequency'])
+
+    top_words_df = pd.DataFrame(
+        word_counts.most_common(20),
+        columns=['Word', 'Frequency']
+    )
 
     plt.figure(figsize=(12, 8))
-    sns.barplot(data=top_words_df, x='Frequency', y='Word', palette='Blues_r')
-    plt.title('Top 20 từ xuất hiện nhiều nhất')
-    plt.xlabel('Tần suất xuất hiện')
-    plt.ylabel('Từ vựng')
+
+    sns.barplot(
+        data=top_words_df,
+        x='Frequency',
+        y='Word',
+        palette='Blues_r'
+    )
+
+    plt.title('Top 20 Most Frequent Words')
+    plt.xlabel('Frequency')
+    plt.ylabel('Words')
+
     plt.show()
+
+# POSITIVE VS NEGATIVE WORDCLOUD
 
 def top_words_positive_negative(df):
 
     ### Phan chia du lieu
-    df_cleaned = df.dropna(subset=['cleaned_review'])
+    df_cleaned = df.dropna(subset=['Cleaned_Review Text'])
     df_positive = df_cleaned[df_cleaned['Rating'] >= 4]
     df_negative = df_cleaned[df_cleaned['Rating'] <= 2]
 
     ### Xu ly du lieu tich cuc (Positive)
-    pos_corpus = " ".join(df_positive['cleaned_review']).split()
+    pos_corpus = " ".join(df_positive['Cleaned_Review Text']).split()
     pos_counts = Counter(pos_corpus)
     top_20_pos_dict = dict(pos_counts.most_common(20))
 
     ### Xu ly du lieu tieu cuc (Negative)
-    neg_corpus = " ".join(df_negative['cleaned_review']).split()
+    neg_corpus = " ".join(df_negative['Cleaned_Review Text']).split()
     neg_counts = Counter(neg_corpus)
     top_20_neg_dict = dict(neg_counts.most_common(20))
 
@@ -115,6 +144,7 @@ def top_words_positive_negative(df):
     plt.subplot(1, 2, 2)
     plt.imshow(wc_neg, interpolation='bilinear')
     plt.axis('off')
-    plt.title('Top 20 Negative Words (1–2)', fontsize=20, color='royalblue', fontweight='bold')
+    plt.title('Top 20 Negative Words (1–2)', fontsize=20, color='darkred', fontweight='bold')
     plt.tight_layout() 
     plt.show()
+

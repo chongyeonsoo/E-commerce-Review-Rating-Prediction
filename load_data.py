@@ -1,14 +1,13 @@
 import pandas as pd
 
-# Load Dataset
-print("--- LOAD DATASET ---")
+# LOAD DATASET
 def load_dataset(file_path):
 
     try:
-        df = pd.read_csv('Amazon_Reviews.csv', encoding='utf-8', engine='python')
+        df = pd.read_csv(file_path, encoding='utf-8', engine='python')
         print("Tải dữ liệu thành công!")
     except:
-        df = pd.read_csv('Amazon_Reviews.csv', encoding='latin-1', engine='python')
+        df = pd.read_csv(file_path, encoding='latin-1', engine='python')
         print("Tải dữ liệu bằng encoding latin1 thành công!")
 
     return df
@@ -22,10 +21,8 @@ def clean_numeric_columns(df):
 
     return df
 
-
+# BASIC INFO
 def basic_info(df):
-
-    print("\n--- DATASET INFO ---")
 
     ## Kich thuoc du lieu
     print(f"Kích thước tập dữ liệu (Shape): {df.shape}")

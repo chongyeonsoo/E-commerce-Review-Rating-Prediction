@@ -1,71 +1,95 @@
 import re
 import string
-
+import pandas as pd
 import nltk
 
 from nltk.corpus import stopwords
 from nltk.tokenize import word_tokenize
 from nltk.stem import WordNetLemmatizer
 
+# DOWNLOAD NLTK DATA
 nltk.download('punkt')
 nltk.download('stopwords')
 nltk.download('wordnet')
 nltk.download('omw-1.4')
-
 stop_words = set(stopwords.words('english'))
-
 lemmatizer = WordNetLemmatizer()
 
-print("--- TEXT PREPROCESSING ---")
-def clean_text(text):
 
-    if not isinstance(text, str):
-        return ""
+def clean_text(df, column_name):
 
-    # Lowercase
-    text = text.lower()
+    print(f"\n--- PREPROCESSING COLUMN: {column_name} ---")
 
-    # Remove HTML
-    text = re.sub(r'<.*?>', '', text)
+    ## Create coloum name
+    cleaned_column = f"Cleaned_{column_name}"
+    token_column = f"Token_{column_name}"
 
-    # Remove URL
-    text = re.sub(r'http\\S+|www\\S+', '', text)
+    ## Text cleaning function
+    def preprocess_single_text(text):
 
-    # Remove punctuation
-    text = text.translate(
-        str.maketrans('', '', string.punctuation)
-    )
+        ### Handle non-string values
+        if not isinstance(text, str):
+            return "", []
+        
+        ### Lowercase
+        text = text.lower()
 
-    # Remove numbers
-    text = re.sub(r'\\d+', '', text)
+        ### Remove HTML tags
+        text = re.sub(r'<.*?>', '', text)
 
-    # Tokenize
-    tokens = word_tokenize(text)
+        ### Remove URLS
+        text = re.sub(r'http\S+|www\S+', '', text)
 
-    # Remove stopwords
-    tokens = [
-        word for word in tokens
-        if word not in stop_words
-    ]
+        ### REemove numbers
+        text = re.sub(r'\d+', '', text)
 
-    # Lemmatization
-    tokens = [lemmatizer.lemmatize(word) for word in tokens]
+        ### Remove punctuation
+        text = text.translate(
+            str.maketrans('', '', string.punctuation)
+        )
 
-    return " ".join(tokens)
+        ### Remove special characters
+        text = re.sub(r'[^a-zA-Z\s]', '', text)
 
+        ### Tokenization
+        tokens = word_tokenize(text)
 
-def preprocess_reviews(df):
+        ### Remove stopwords
+        tokens = [
+            word for word in tokens
+            if word not in stop_words
+        ]
 
-    df['cleaned_review'] = df['Review Text'].apply(clean_text)
+        ### Remove emty tokens
+        tokens = [
+            word for word in tokens
+            if word.strip() != ''
+        ]
+
+        ### Lemmatization
+        tokens = [
+            lemmatizer.lemmatize(word, pos='v')
+            for word in tokens
+        ]
+
+        ### Join tokens
+        cleaned_text = " ".join(tokens)
+
+        return cleaned_text, tokens
+
+    results = df[column_name].apply(preprocess_single_text)
+    df[cleaned_column] = results.apply(lambda x: x[0])
+    df[token_column] = results.apply(lambda x: x[1])
+
+    print(f"Created column: {cleaned_column}")
+    print(f"Created column: {token_column}")
 
     return df
 
 
 def create_final_dataset(df):
 
-    print("\n--- FINAL CLEAN DATASET ---")
-    clean_df = df[['Rating', 'cleaned_review', 'Review_Length']]
-    print("Hiển thị 5 dòng đầu của dữ liệu: ")
-    print(clean_df.head())
+    # Chọn các cột cần thiết
+    clean_df = df[['Rating', 'Review_Length', 'Cleaned_Review Text','Token_Review Text']]
 
     return clean_df
