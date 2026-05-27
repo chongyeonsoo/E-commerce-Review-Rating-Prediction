@@ -15,7 +15,6 @@ def extract_tfidf_features(df, text_column='Cleaned_Review Text'):
     X_tfidf = vectorizer.fit_transform(df[text_column])
 
     print("\n--- TF-IDF FEATURE EXTRACTION ---")
-    print("TF-IDF feature extraction completed!")
     print(f"TF-IDF matrix shape: {X_tfidf.shape}")
 
     return X_tfidf, vectorizer
