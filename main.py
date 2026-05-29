@@ -1,61 +1,25 @@
-from load_data import *
-from preprocessing import *
-from visualization import *
-
+from data_loader.load_data import load_dataset
+from data_loader.loader_pipeline import loader_pipeline
+from preprocessing.preprocessing_pipeline import preprocessing_pipeline
+from extraction_feature.feature_pipeline import extraction_pipeline
+from sentiment_model.model_pipeline import model_pipeline
+from sklearn.metrics import accuracy_score
+import pandas as pd
 def main():
-
-    # LOAD DATASET
-    print("\n--- LOAD DATASET ---")
-    df = load_dataset("D:\\NLP\\Amazon_Reviews.csv")
-
-    # CLEAN NUMERIC COLUMNS
-    print("\n--- CLEAN NUMERIC COLUMNS ---")
-    df = clean_numeric_columns(df)
-
-    # BASIC DATASET INFO
-    print("\n--- DATASET INFO BEFORE CLEANING ---")
-    basic_info(df)
-
-    # REMOVE MISSING VALUES AND DUPLICATES
-    print("\n--- REMOVE MISSING VALUES & DUPLICATES ---")
-    df = clean_missing_duplicate(df)
-
-    # CREATE REVIEW LENGTH COLUMN
-    print("\n--- CREATE REVIEW LENGTH ---")
-    df['Review_Length'] = df['Review Text'].apply(
-        lambda x: len(str(x).split())
-    )
-    print("Created column: Review_Length")
-
-    # BASIC VISUALIZATION
-    print("\n--- BASIC VISUALIZATION ---")
-
-    visualize_rating_distribution(df)
-
-    visualize_review_length(df)
-
-    visualize_average_length(df)
-
-    visualize_heatmap(df)
-
-    generate_wordcloud(df)
-
-    # TEXT PREPROCESSING
-    print("\n--- TEXT PREPROCESSING ---")
-    df = clean_text(df, 'Review Text')
-
-    # TEXT VISUALIZATION AFTER CLEANING
-    print("\n--- TEXT VISUALIZATION ---")
-
-    top_words_visualization(df)
-
-    top_words_positive_negative(df)
-
-    # FINAL CLEAN DATASET
-    print("\n--- FINAL CLEAN DATASET ---")
-    clean_df = create_final_dataset(df)
-    print(clean_df.head())
-
-
+    data = load_dataset('Amazon_Reviews.csv')
+    df = loader_pipeline(data.copy())
+    data = preprocessing_pipeline(df.copy())
+    df, X_tfidf, y_sentiment = extraction_pipeline(data.copy())
+    print(df.head(10))
+    result = model_pipeline(X_tfidf, y_sentiment)
+    print(result)
+    lr_pro = result['LOGISTIC REGRESSION']['probability']
+    df['lr_pro'] = lr_pro.flatten()
+    nb_pro = result['NAIVE BAYES']['probability']
+    nb_pro_0 = nb_pro[:, 0]
+    nb_pro_1 = nb_pro[:, 1]
+    df['nb_0'] = nb_pro_0.flatten()
+    df['nb_1'] = nb_pro_1.flatten()
+    print(df.head(10))
 if __name__ == "__main__":
     main()
