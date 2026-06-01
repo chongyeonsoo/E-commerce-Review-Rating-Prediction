@@ -2,6 +2,7 @@ from sentiment_model.LogisticRegression import Logisticregression
 from sentiment_model.NaiveBayes import MultinomialNaiveBayes
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import accuracy_score, f1_score
+import pandas as pd
 def model_pipeline(X, y):
     result= {}
     print("SPLIT TRAIN TEST AND TRAIN MODEL")
@@ -25,4 +26,15 @@ def model_pipeline(X, y):
             "f1": f1,
             "probability": y_prob_test
         } 
-    return result
+        rows = []
+
+    for model_name, info in result.items():
+        rows.append({
+            "Model": model_name,
+            "Accuracy": round(info["accuracy"], 4),
+            "F1": round(info["f1"], 4),
+            "Prob Shape": info["probability"].shape
+    })
+
+    df_model_sentiment = pd.DataFrame(rows)
+    return result, df_model_sentiment
