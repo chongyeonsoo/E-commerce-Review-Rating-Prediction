@@ -11,8 +11,10 @@ def main():
     data = preprocessing_pipeline(df.copy())
     df, X_tfidf, y_sentiment = extraction_pipeline(data.copy())
     print(df.head(10))
-    result = model_pipeline(X_tfidf, y_sentiment)
-    print(result)
+    result, df_model_sentiment = model_pipeline(X_tfidf, y_sentiment)
+    print(df_model_sentiment.head(10))
+
+    ## add prob vao data
     lr_pro = result['LOGISTIC REGRESSION']['probability']
     df['lr_pro'] = lr_pro.flatten()
     nb_pro = result['NAIVE BAYES']['probability']
