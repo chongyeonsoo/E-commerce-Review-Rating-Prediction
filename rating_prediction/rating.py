@@ -87,12 +87,13 @@ def evaluate_rating_models(models, X_test, y_test):
         mae = mean_absolute_error(y_test, y_pred)
         rmse = np.sqrt(mean_squared_error(y_test, y_pred))
         r2 = r2_score(y_test, y_pred)
-
+        within_1 = (np.abs(y_test.values - y_pred) <= 1.0).mean()
         rows.append({
             'Model': name,
             'MAE': mae,
             'RMSE': rmse,
-            'R2': r2
+            'R2': r2,
+            'Within_1_Star': round(within_1, 4)
         })
 
     metrics_df = pd.DataFrame(rows).sort_values(by='MAE').reset_index(drop=True)
@@ -108,8 +109,13 @@ def add_predictions_to_dataframe(data, X_test, y_test, predictions):
 
     for name, y_pred in predictions.items():
         safe_name = name.lower().replace(' ', '_')
+
         pred_df[f'Predicted_Rating_{safe_name}'] = y_pred
+        pred_df[f'Rounded_{safe_name}'] = np.round(y_pred).clip(1, 5).astype(int)
         pred_df[f'Residual_{safe_name}'] = pred_df['Actual_Rating'] - y_pred
+        pred_df[f'Within1_{safe_name}'] = (
+            pred_df[f'Residual_{safe_name}'].abs() <= 1.0
+        )
 
     return pred_df
 
@@ -184,8 +190,7 @@ def run_rating_prediction(
 ):
     data, X, y, feature_cols = prepare_rating_data(df, feature_cols, target_col)
 
-    # Không stratify trực tiếp như classification vì target là số rời rạc nhưng regression vẫn có thể split thường.
-    # Nếu muốn giữ phân phối rating ổn định, stratify=y cũng dùng được vì rating là 1-5.
+    # Vì Rating là 1-5 nên có thể stratify theo y để giữ phân phối rating ổn định.
     X_train, X_test, y_train, y_test = train_test_split(
         X,
         y,
@@ -199,18 +204,57 @@ def run_rating_prediction(
     pred_df = add_predictions_to_dataframe(data, X_test, y_test, predictions)
 
     os.makedirs(output_dir, exist_ok=True)
+
     metrics_path = os.path.join(output_dir, 'rating_prediction_metrics.csv')
     pred_path = os.path.join(output_dir, 'rating_prediction_predictions.csv')
+
     metrics_df.to_csv(metrics_path, index=False)
     pred_df.to_csv(pred_path, index=False)
 
+    # Visualize metrics
     visualize_rating_metrics(metrics_df, output_dir=output_dir)
+
+    # Best model
     best_model_name = metrics_df.iloc[0]['Model']
+
+    # Visualize actual vs predicted + residual
     visualize_actual_vs_predicted(pred_df, best_model_name, output_dir=output_dir)
+
+    # NEW: Error analysis by rating
+    error_fig_path, error_summary = error_analysis_by_rating(
+        pred_df=pred_df,
+        best_model_name=best_model_name,
+        output_dir=output_dir
+    )
+
+    # Interpretation
+    best_row = metrics_df.iloc[0]
+
+    print("\n--- RATING PREDICTION INTERPRETATION ---")
+    print(
+        f"Best model: {best_row['Model']} | "
+        f"MAE = {best_row['MAE']:.4f}, "
+        f"RMSE = {best_row['RMSE']:.4f}, "
+        f"R2 = {best_row['R2']:.4f}"
+    )
+
+    if 'Within_1_Star' in metrics_df.columns:
+        print(
+            f"Within-1-star accuracy: "
+            f"{best_row['Within_1_Star'] * 100:.2f}% predictions are within 1 star."
+        )
+
+    print(
+        f"Interpretation: The best model explains approximately "
+        f"{best_row['R2'] * 100:.1f}% of rating variance."
+    )
 
     print(f"\nSaved metrics to: {metrics_path}")
     print(f"Saved predictions to: {pred_path}")
     print(f"Best rating model by MAE: {best_model_name}")
+
+    if error_fig_path is not None:
+        print(f"Saved error analysis figure to: {error_fig_path}")
 
     return {
         'models': models,
@@ -219,5 +263,93 @@ def run_rating_prediction(
         'feature_cols': feature_cols,
         'best_model': best_model_name,
         'metrics_path': metrics_path,
-        'predictions_path': pred_path
+        'predictions_path': pred_path,
+        'error_analysis_path': error_fig_path,
+        'error_analysis_summary': error_summary
     }
+
+def error_analysis_by_rating(pred_df, best_model_name, output_dir='outputs'):
+    """
+    Phân tích lỗi dự đoán theo từng mức rating thật.
+    Output:
+    - error_analysis_by_rating.png
+    - error_analysis_by_rating.csv
+    """
+    os.makedirs(output_dir, exist_ok=True)
+
+    safe_name = best_model_name.lower().replace(' ', '_')
+    pred_col = f'Predicted_Rating_{safe_name}'
+    residual_col = f'Residual_{safe_name}'
+
+    if pred_col not in pred_df.columns or residual_col not in pred_df.columns:
+        print(f"[WARNING] Cannot find columns: {pred_col}, {residual_col}")
+        return None, None
+
+    tmp = pred_df.copy()
+    tmp['Abs_Error'] = tmp[residual_col].abs()
+
+    summary = (
+        tmp.groupby('Actual_Rating')
+        .agg(
+            Count=('Abs_Error', 'size'),
+            MAE=('Abs_Error', 'mean'),
+            Median_Abs_Error=('Abs_Error', 'median'),
+            Mean_Predicted_Rating=(pred_col, 'mean')
+        )
+        .reset_index()
+    )
+
+    summary['MAE'] = summary['MAE'].round(4)
+    summary['Median_Abs_Error'] = summary['Median_Abs_Error'].round(4)
+    summary['Mean_Predicted_Rating'] = summary['Mean_Predicted_Rating'].round(4)
+
+    csv_path = os.path.join(output_dir, 'error_analysis_by_rating.csv')
+    summary.to_csv(csv_path, index=False)
+
+    fig, axes = plt.subplots(1, 2, figsize=(14, 5))
+
+    axes[0].bar(summary['Actual_Rating'], summary['MAE'])
+    axes[0].set_title(f'MAE by Rating Level - {best_model_name}')
+    axes[0].set_xlabel('Actual Rating')
+    axes[0].set_ylabel('Mean Absolute Error')
+    axes[0].set_xticks([1, 2, 3, 4, 5])
+
+    for i, val in enumerate(summary['MAE']):
+        axes[0].text(
+            summary['Actual_Rating'].iloc[i],
+            val + 0.01,
+            f'{val:.3f}',
+            ha='center',
+            va='bottom',
+            fontsize=9
+        )
+
+    axes[1].bar(summary['Actual_Rating'], summary['Count'])
+    axes[1].set_title('Sample Count by Rating Level')
+    axes[1].set_xlabel('Actual Rating')
+    axes[1].set_ylabel('Count')
+    axes[1].set_xticks([1, 2, 3, 4, 5])
+
+    for i, val in enumerate(summary['Count']):
+        axes[1].text(
+            summary['Actual_Rating'].iloc[i],
+            val,
+            str(val),
+            ha='center',
+            va='bottom',
+            fontsize=9
+        )
+
+    plt.tight_layout()
+
+    fig_path = os.path.join(output_dir, 'error_analysis_by_rating.png')
+    plt.savefig(fig_path, dpi=300, bbox_inches='tight')
+    plt.close()
+
+    print("\n--- ERROR ANALYSIS BY RATING ---")
+    print(summary.to_string(index=False))
+    print(f"Saved: {fig_path}")
+    print(f"Saved: {csv_path}")
+
+    return fig_path, summary
+
