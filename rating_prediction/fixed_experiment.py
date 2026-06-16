@@ -7,7 +7,8 @@ What this fixes compared with the original pipeline:
 3. Generate train sentiment probabilities with out-of-fold predictions.
 4. Generate test sentiment probabilities from sentiment models trained only on train.
 5. Add regression baselines: DummyRegressor mean/median and direct TF-IDF -> Ridge.
-6. Keep negation words (no/not/nor) out of the stopword list.
+6. Add ablation study for LR-only, NB-only, and LR+NB sentiment probability features.
+7. Keep negation words (no/not/nor) out of the stopword list.
 
 Run from repository root:
     python rating_prediction/fixed_experiment.py
@@ -188,35 +189,78 @@ def run_fixed_experiment(csv_path: str = "Amazon_Reviews.csv", drop_neutral: boo
         X_train_tfidf, y_sent_train, X_test_tfidf
     )
 
-    rating_models = {
-        "Dummy Mean": DummyRegressor(strategy="mean"),
-        # Median is an honest floor for Within-1-Star on this polar, imbalanced dataset.
-        "Dummy Median": DummyRegressor(strategy="median"),
-        "Sentiment OOF + Linear": LinearRegression(),
-        "Sentiment OOF + Ridge": Ridge(alpha=1.0),
-        "Direct TFIDF + Ridge": Ridge(alpha=1.0),
+    # Ablation study: test which sentiment probability feature actually contributes.
+    # The columns below are leakage-safe because they were generated via OOF for train
+    # and train-only models for test.
+    feature_sets = {
+        "LR prob only": ["lr_1_oof"],
+        "NB prob only": ["nb_1_oof"],
+        "LR + NB probs": ["lr_1_oof", "nb_1_oof"],
+    }
+    sentiment_rating_models = {
+        "Linear Regression": LinearRegression(),
+        "Ridge Regression": Ridge(alpha=1.0),
     }
 
     metric_rows = []
     pred_df = test_df[[TEXT_COL, RATING_COL, "Sentiment_Label"]].copy()
     pred_df = pred_df.rename(columns={RATING_COL: "Actual_Rating"})
 
-    for name, model in rating_models.items():
-        if name == "Direct TFIDF + Ridge":
-            model.fit(X_train_tfidf, y_rating_train)
-            y_pred = np.clip(model.predict(X_test_tfidf), 1, 5)
-        else:
-            model.fit(X_rating_train, y_rating_train)
-            y_pred = np.clip(model.predict(X_rating_test), 1, 5)
-
+    # Proper trivial baselines. These do not use text or sentiment features.
+    baseline_models = {
+        "Dummy Mean": DummyRegressor(strategy="mean"),
+        # Median is an honest floor for Within-1-Star on this polar, imbalanced dataset.
+        "Dummy Median": DummyRegressor(strategy="median"),
+    }
+    for name, model in baseline_models.items():
+        model.fit(np.zeros((len(y_rating_train), 1)), y_rating_train)
+        y_pred = np.clip(model.predict(np.zeros((len(y_rating_test), 1))), 1, 5)
         metric = evaluate_rating(y_rating_test, y_pred)
-        metric_rows.append({"Model": name, **metric})
+        metric_rows.append({
+            "Feature_Set": "Trivial baseline",
+            "Model": name,
+            **metric,
+        })
         safe = name.lower().replace(" + ", "_").replace(" ", "_")
         pred_df[f"Predicted_{safe}"] = y_pred
         pred_df[f"Residual_{safe}"] = pred_df["Actual_Rating"] - y_pred
         pred_df[f"Within1_{safe}"] = pred_df[f"Residual_{safe}"].abs() <= 1
 
-    rating_metrics = pd.DataFrame(metric_rows).sort_values("MAE").reset_index(drop=True)
+    # Direct text baseline: text -> rating without the sentiment-probability layer.
+    direct_model = Ridge(alpha=1.0)
+    direct_model.fit(X_train_tfidf, y_rating_train)
+    y_pred = np.clip(direct_model.predict(X_test_tfidf), 1, 5)
+    metric = evaluate_rating(y_rating_test, y_pred)
+    metric_rows.append({
+        "Feature_Set": "Direct TF-IDF",
+        "Model": "Direct TFIDF + Ridge",
+        **metric,
+    })
+    pred_df["Predicted_direct_tfidf_ridge"] = y_pred
+    pred_df["Residual_direct_tfidf_ridge"] = pred_df["Actual_Rating"] - y_pred
+    pred_df["Within1_direct_tfidf_ridge"] = pred_df["Residual_direct_tfidf_ridge"].abs() <= 1
+
+    # Sentiment-probability ablations: LR only vs NB only vs both features.
+    for feature_name, cols in feature_sets.items():
+        X_train_subset = X_rating_train[cols]
+        X_test_subset = X_rating_test[cols]
+        for model_name, model in sentiment_rating_models.items():
+            model.fit(X_train_subset, y_rating_train)
+            y_pred = np.clip(model.predict(X_test_subset), 1, 5)
+            metric = evaluate_rating(y_rating_test, y_pred)
+            metric_rows.append({
+                "Feature_Set": feature_name,
+                "Model": model_name,
+                **metric,
+            })
+            safe_feature = feature_name.lower().replace(" + ", "_").replace(" ", "_").replace("-", "_")
+            safe_model = model_name.lower().replace(" ", "_")
+            safe = f"{safe_feature}_{safe_model}"
+            pred_df[f"Predicted_{safe}"] = y_pred
+            pred_df[f"Residual_{safe}"] = pred_df["Actual_Rating"] - y_pred
+            pred_df[f"Within1_{safe}"] = pred_df[f"Residual_{safe}"].abs() <= 1
+
+    rating_metrics = pd.DataFrame(metric_rows).sort_values(["MAE", "RMSE"]).reset_index(drop=True)
 
     sentiment_metrics.to_csv(os.path.join(OUTPUT_DIR, "sentiment_oof_metrics.csv"), index=False)
     rating_metrics.to_csv(os.path.join(OUTPUT_DIR, "rating_fixed_metrics.csv"), index=False)
