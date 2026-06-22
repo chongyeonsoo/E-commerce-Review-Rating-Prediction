@@ -1,19 +1,18 @@
-from rating_prediction.rating import run_rating_prediction
+from rating_prediction.rating import run_rating_prediction, error_analysis_by_rating
 
 
 def rating_prediction_pipeline(df):
-    """
-    Pipeline cho task: Rating prediction + visualize + metrics.
-    Input cần là dataframe đã có sentiment probability từ 2 model:
-        - lr_pro hoặc lr_1
-        - nb_1
-    """
     result = run_rating_prediction(
         df=df,
-        feature_cols=None,
         target_col='Rating',
         test_size=0.2,
         random_state=42,
         output_dir='outputs'
     )
+    error_analysis_by_rating(
+        pred_df=result['predictions'],
+        best_combination=result['best_combination'],
+        output_dir='outputs'
+    )
+
     return result
