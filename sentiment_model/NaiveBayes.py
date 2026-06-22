@@ -28,10 +28,12 @@ class MultinomialNaiveBayes:
 
             class_count = np.asarray(X_c.sum(axis=0)).ravel() + self.alpha
             smoothed_total = class_count.sum()
-            feature_log_prob.append(np.log(class_count / smoothed_total))
+            log_prob = np.log(class_count / smoothed_total)
+            feature_log_prob.append(log_prob)
 
         self.class_log_prior_ = np.asarray(class_log_prior)
         self.feature_log_prob_ = np.vstack(feature_log_prob)
+        self.class_log_prior_ = np.asarray(class_log_prior).reshape(1, -1)
         return self
 
     def _joint_log_likelihood(self, X):
@@ -75,4 +77,5 @@ class ComplementNaiveBayes(MultinomialNaiveBayes):
 
         self.class_log_prior_ = np.asarray(class_log_prior)
         self.feature_log_prob_ = np.vstack(feature_log_prob)
+        self.class_log_prior_ = np.asarray(class_log_prior).reshape(1, -1)
         return self
