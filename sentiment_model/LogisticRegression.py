@@ -103,5 +103,5 @@ class Logisticregression:
         return (y_hat >= 0.5).astype(int)
 
     def predict_proba(self, X):
-        y_hat = self.sigmoid(self._linear_score(X))
+        y_hat = self.sigmoid(self._linear_score(X)).flatten()
         return y_hat
