@@ -2,7 +2,7 @@ from sentiment_model.LogisticRegression import Logisticregression
 from sentiment_model.NaiveBayes import MultinomialNaiveBayes
 from sklearn.model_selection import StratifiedKFold
 from sklearn.metrics import classification_report
-
+from sentiment_model.visualize_sentiment import visualize_sentiment
 from sklearn.metrics import accuracy_score, f1_score
 import numpy as np
 import pandas as pd
@@ -65,4 +65,6 @@ def model_pipeline(X, y):
         })
 
     df_model_sentiment = pd.DataFrame(rows)
+    visualize_sentiment(result, y, output_dir='outputs\sentiment_output')
     return result, df_model_sentiment
+
