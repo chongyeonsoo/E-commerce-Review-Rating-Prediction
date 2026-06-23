@@ -19,15 +19,13 @@ def main():
     df['lr_0'] = 1 - df['lr_pro']
     df['lr_1'] = df['lr_pro']
     nb_pro = result['NAIVE BAYES']['probability']
-    nb_pro_0 = nb_pro[:, 0]
-    nb_pro_1 = nb_pro[:, 1]
+    nb_pro_0 = 1 - nb_pro
+    nb_pro_1 = nb_pro
     df['nb_0'] = nb_pro_0.flatten()
     df['nb_1'] = nb_pro_1.flatten()
     print(df.head(10))
-
     # RATING PREDICTION + VISUALIZE + METRICS
     rating_result = rating_prediction_pipeline(df)
-    print(rating_result['metrics'])
 
 if __name__ == "__main__":
     main()
