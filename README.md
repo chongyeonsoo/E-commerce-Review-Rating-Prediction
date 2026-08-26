@@ -558,8 +558,9 @@ Several improvements could be explored in future versions:
 ## 👤 Contribute
 
 **Nguyễn Đặng Văn Cảnh**
-
-GitHub: [@chongyeonsoo](https://github.com/chongyeonsoo)
+**Đinh Vĩnh Bình Nghi**
+**Nguyễn Tuấn Khải**
+**Nguyễn Vưu Ý Vy**
 
 ---
 
